@@ -638,7 +638,8 @@ Please email this report to: rdandrea@stansberryresearch.com
             );
         }
 
-        ReactDOM.render(<FlashcardApp />, document.getElementById('root'));
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<FlashcardApp />);
     </script>
 </body>
 </html>
