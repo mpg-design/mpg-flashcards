@@ -15,7 +15,7 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
         
-     const FLASHCARD_DATA = [
+        const FLASHCARD_DATA = [
   {"id":1,"category":"Stansberry Research","pubCode":"REM","name":"Retirement Millionaire","type":"Front End","editors":"David Eifrig"},
   {"id":2,"category":"Stansberry Research","pubCode":"TRW","name":"True Wealth","type":"Front End","editors":"Brett Eversole"},
   {"id":3,"category":"Stansberry Research","pubCode":"PSI","name":"Stansberry's Investment Advisory","type":"Front End","editors":"Whitney Tilson; Alan Gula; Mike DiBiase; Bryan Beach"},
@@ -212,19 +212,21 @@
   {"id":194,"category":"Legacy-Rogue","pubCode":"LFE","name":"Legacy Bundle","type":"Mini Mega","editors":""},
   {"id":195,"category":"Legacy-Rogue","pubCode":"LRS","name":"Legacy Select","type":"Lifetime","editors":"All"},
   {"id":196,"category":"Legacy-Rogue","pubCode":"LGM","name":"Legacy Lifetime:  Unlimited","type":"Mega","editors":"All"}
-];;
+];
 
         function FlashcardApp() {
             const [userName, setUserName] = useState('');
             const [tempName, setTempName] = useState('');
             const [showNameInput, setShowNameInput] = useState(true);
-            const [selectedCategory, setSelectedCategory] = useState('All');
+            const [selectedCategories, setSelectedCategories] = useState(new Set(['All']));
+            const [selectedEditors, setSelectedEditors] = useState(new Set(['All']));
             const [currentIndex, setCurrentIndex] = useState(0);
             const [isFlipped, setIsFlipped] = useState(false);
             const [learnedCards, setLearnedCards] = useState(new Set());
             const [shuffledCards, setShuffledCards] = useState([]);
             const [showProgress, setShowProgress] = useState(false);
-            const [showFilter, setShowFilter] = useState(false);
+            const [showBrandFilter, setShowBrandFilter] = useState(false);
+            const [showEditorFilter, setShowEditorFilter] = useState(false);
             const [motivationalMessage, setMotivationalMessage] = useState('');
             const [showReportModal, setShowReportModal] = useState(false);
             const [reportType, setReportType] = useState('wrong-data');
@@ -233,6 +235,24 @@
             const [copied, setCopied] = useState(false);
 
             const categories = ['All', ...new Set(FLASHCARD_DATA.map(c => c.category))];
+            
+            // Get unique editors (split by semicolons and clean up)
+            const getAllEditors = () => {
+                const editorsSet = new Set();
+                FLASHCARD_DATA.forEach(card => {
+                    if (card.editors && card.editors.trim()) {
+                        // Split by semicolons and clean up
+                        card.editors.split(';').forEach(editor => {
+                            const cleaned = editor.trim();
+                            // Don't add "All" from the data
+                            if (cleaned && cleaned !== 'All') editorsSet.add(cleaned);
+                        });
+                    }
+                });
+                return ['All', ...Array.from(editorsSet).sort()];
+            };
+            
+            const editors = getAllEditors();
             
             const motivationalMessages = [
                 "🎉 Way to go, {name}! You're crushing it!",
@@ -246,20 +266,53 @@
                 "🌟 {name}, you're absolutely killing it!",
                 "💯 Perfect streak, {name}! Keep the momentum!"
             ];
-            
-            const baseFilteredCards = selectedCategory === 'All' 
-                ? FLASHCARD_DATA 
-                : FLASHCARD_DATA.filter(c => c.category === selectedCategory);
+
+            // Shuffle function
+            const shuffleArray = (array) => {
+                const shuffled = [...array];
+                for (let i = shuffled.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+                }
+                return shuffled;
+            };
+
+            // Calculate filtered cards based on all selected filters
+            const getFilteredCards = () => {
+                let filtered = FLASHCARD_DATA;
                 
-            const filteredCards = shuffledCards.length > 0 ? shuffledCards : baseFilteredCards;
+                // Filter by category
+                if (!selectedCategories.has('All')) {
+                    filtered = filtered.filter(c => selectedCategories.has(c.category));
+                }
+                
+                // Filter by editor
+                if (!selectedEditors.has('All')) {
+                    filtered = filtered.filter(card => {
+                        if (!card.editors) return false;
+                        const cardEditors = card.editors.split(';').map(e => e.trim());
+                        return Array.from(selectedEditors).some(selectedEditor => 
+                            cardEditors.includes(selectedEditor)
+                        );
+                    });
+                }
+
+                // Always shuffle the cards
+                return shuffleArray(filtered);
+            };
+
+            const filteredCards = shuffledCards.length > 0 ? shuffledCards : getFilteredCards();
 
             useEffect(() => {
                 loadUserData();
-                if (selectedCategory === 'All') {
-                    const shuffled = [...FLASHCARD_DATA].sort(() => Math.random() - 0.5);
-                    setShuffledCards(shuffled);
-                }
             }, []);
+
+            // Update cards when any filter changes
+            useEffect(() => {
+                setShuffledCards(getFilteredCards());
+                setCurrentIndex(0);
+                setIsFlipped(false);
+            }, [selectedCategories, selectedEditors]);
 
             const loadUserData = () => {
                 try {
@@ -285,6 +338,48 @@
                     setUserName(name);
                     setShowNameInput(false);
                     localStorage.setItem('flashcard-username', name);
+                }
+            };
+
+            const toggleCategory = (category) => {
+                const newSelected = new Set(selectedCategories);
+                
+                if (category === 'All') {
+                    setSelectedCategories(new Set(['All']));
+                } else {
+                    newSelected.delete('All');
+                    if (newSelected.has(category)) {
+                        newSelected.delete(category);
+                    } else {
+                        newSelected.add(category);
+                    }
+                    
+                    if (newSelected.size === 0) {
+                        setSelectedCategories(new Set(['All']));
+                    } else {
+                        setSelectedCategories(newSelected);
+                    }
+                }
+            };
+
+            const toggleEditor = (editor) => {
+                const newSelected = new Set(selectedEditors);
+                
+                if (editor === 'All') {
+                    setSelectedEditors(new Set(['All']));
+                } else {
+                    newSelected.delete('All');
+                    if (newSelected.has(editor)) {
+                        newSelected.delete(editor);
+                    } else {
+                        newSelected.add(editor);
+                    }
+                    
+                    if (newSelected.size === 0) {
+                        setSelectedEditors(new Set(['All']));
+                    } else {
+                        setSelectedEditors(newSelected);
+                    }
                 }
             };
 
@@ -335,11 +430,7 @@
             };
 
             const handleShuffle = () => {
-                const baseCards = selectedCategory === 'All' 
-                    ? FLASHCARD_DATA 
-                    : FLASHCARD_DATA.filter(c => c.category === selectedCategory);
-                const shuffled = [...baseCards].sort(() => Math.random() - 0.5);
-                setShuffledCards(shuffled);
+                setShuffledCards(getFilteredCards());
                 setCurrentIndex(0);
                 setIsFlipped(false);
             };
@@ -436,6 +527,31 @@ Please email this report to: rdandrea@stansberryresearch.com
             const totalCards = FLASHCARD_DATA.length;
             const progressPercent = (userScore / totalCards) * 100;
 
+            if (!currentCard) {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-100 flex items-center justify-center p-4">
+                        <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full text-center">
+                            <h2 className="text-2xl font-bold text-gray-800 mb-4">
+                                No cards match your selected filters
+                            </h2>
+                            <button
+                                onClick={() => {
+                                    setSelectedCategories(new Set(['All']));
+                                    setSelectedEditors(new Set(['All']));
+                                }}
+                                className="bg-indigo-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-indigo-700 transition"
+                            >
+                                Reset All Filters
+                            </button>
+                        </div>
+                    </div>
+                );
+            }
+
+            const activeFiltersCount = 
+                (selectedCategories.has('All') ? 0 : selectedCategories.size) +
+                (selectedEditors.has('All') ? 0 : selectedEditors.size);
+
             return (
                 <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-100 p-4">
                     <div className="max-w-5xl mx-auto">
@@ -457,7 +573,7 @@ Please email this report to: rdandrea@stansberryresearch.com
                                         onClick={handleShuffle}
                                         className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition font-semibold"
                                     >
-                                        🔀 Shuffle All
+                                        🔀 Shuffle
                                     </button>
                                 </div>
                             </div>
@@ -498,44 +614,39 @@ Please email this report to: rdandrea@stansberryresearch.com
                                     </div>
                                     
                                     <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-lg">
-                                        <div className="text-sm text-purple-700 font-medium">Current Category</div>
-                                        <div className="text-2xl font-bold text-purple-800">{selectedCategory}</div>
+                                        <div className="text-sm text-purple-700 font-medium">Active Filters</div>
+                                        <div className="text-2xl font-bold text-purple-800">
+                                            {activeFiltersCount === 0 ? 'None' : activeFiltersCount}
+                                        </div>
                                         <div className="text-sm text-purple-600">{filteredCards.length} cards</div>
                                     </div>
                                 </div>
                             )}
                         </div>
 
-                        <div className="bg-white rounded-xl shadow-lg p-4 mb-6">
+                        {/* Brand Filter */}
+                        <div className="bg-white rounded-xl shadow-lg p-4 mb-4">
                             <button
-                                onClick={() => setShowFilter(!showFilter)}
+                                onClick={() => setShowBrandFilter(!showBrandFilter)}
                                 className="w-full flex items-center justify-between hover:bg-gray-50 p-2 rounded-lg transition"
                             >
                                 <div className="flex items-center gap-2">
-                                    <span>🔍</span>
-                                    <span className="font-semibold text-gray-800">Filter by Brand: {selectedCategory}</span>
+                                    <span>🏢</span>
+                                    <span className="font-semibold text-gray-800">
+                                        Filter by Brand {selectedCategories.has('All') ? '(All)' : `(${selectedCategories.size} selected)`}
+                                    </span>
                                 </div>
-                                <span>{showFilter ? '▲' : '▼'}</span>
+                                <span>{showBrandFilter ? '▲' : '▼'}</span>
                             </button>
                             
-                            {showFilter && (
-                                <div className="flex flex-wrap gap-2 mt-4">
+                            {showBrandFilter && (
+                                <div className="mt-4 flex flex-wrap gap-2">
                                     {categories.map(cat => (
                                         <button
                                             key={cat}
-                                            onClick={() => {
-                                                setSelectedCategory(cat);
-                                                setCurrentIndex(0);
-                                                setIsFlipped(false);
-                                                if (cat === 'All') {
-                                                    const shuffled = [...FLASHCARD_DATA].sort(() => Math.random() - 0.5);
-                                                    setShuffledCards(shuffled);
-                                                } else {
-                                                    setShuffledCards([]);
-                                                }
-                                            }}
+                                            onClick={() => toggleCategory(cat)}
                                             className={`px-4 py-2 rounded-lg font-medium transition ${
-                                                selectedCategory === cat
+                                                selectedCategories.has(cat)
                                                     ? 'bg-indigo-600 text-white'
                                                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                             }`}
@@ -547,10 +658,45 @@ Please email this report to: rdandrea@stansberryresearch.com
                             )}
                         </div>
 
+                        {/* Editor Filter */}
+                        <div className="bg-white rounded-xl shadow-lg p-4 mb-6">
+                            <button
+                                onClick={() => setShowEditorFilter(!showEditorFilter)}
+                                className="w-full flex items-center justify-between hover:bg-gray-50 p-2 rounded-lg transition"
+                            >
+                                <div className="flex items-center gap-2">
+                                    <span>✍️</span>
+                                    <span className="font-semibold text-gray-800">
+                                        Filter by Editor {selectedEditors.has('All') ? '(All)' : `(${selectedEditors.size} selected)`}
+                                    </span>
+                                </div>
+                                <span>{showEditorFilter ? '▲' : '▼'}</span>
+                            </button>
+                            
+                            {showEditorFilter && (
+                                <div className="mt-4 flex flex-wrap gap-2">
+                                    {editors.map(editor => (
+                                        <button
+                                            key={editor}
+                                            onClick={() => toggleEditor(editor)}
+                                            className={`px-4 py-2 rounded-lg font-medium transition ${
+                                                selectedEditors.has(editor)
+                                                    ? 'bg-indigo-600 text-white'
+                                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                            }`}
+                                        >
+                                            {editor}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
                         <div className="mb-6">
                             <div className="text-center mb-4">
                                 <span className="text-gray-600 font-medium">
                                     Card {currentIndex + 1} of {filteredCards.length}
+                                    {activeFiltersCount > 0 ? ' (Filtered & Randomized)' : ' (Randomized)'}
                                 </span>
                             </div>
 
@@ -627,20 +773,6 @@ Please email this report to: rdandrea@stansberryresearch.com
                                                     <div>
                                                         <div className="text-sm text-indigo-200">Editor(s)</div>
                                                         <div className="text-lg font-semibold">{currentCard.editors}</div>
-                                                    </div>
-                                                )}
-                                                
-                                                {currentCard.delivery && (
-                                                    <div>
-                                                        <div className="text-sm text-indigo-200">Delivery</div>
-                                                        <div className="text-lg font-semibold">{currentCard.delivery}</div>
-                                                    </div>
-                                                )}
-                                                
-                                                {currentCard.group && (
-                                                    <div>
-                                                        <div className="text-sm text-indigo-200">Group</div>
-                                                        <div className="text-lg font-semibold">{currentCard.group}</div>
                                                     </div>
                                                 )}
                                                 
